@@ -1,13 +1,34 @@
 const express = require('express');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser()) ;
 
+const verifyToken = (req, res, next) => {
+// console.log("verify from token = ", req.cookies);
+const token = req?.cookies?.token ;
+
+if(!token){
+   return res.status(401).send({message: "Unauthorized Access"})
+}
+jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+    if(err){
+        return res.status(401).send({message: "Unauthorized Access"})
+    }
+    req.user = decoded ;
+    next() ;
+})
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ohdc4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -30,6 +51,18 @@ async function run() {
 
         const jobsCollection = client.db("jobPortal").collection("jobs")
         const jobsApplicationCollection = client.db("jobPortal").collection("jobApplications")
+
+        app.post("/jwt", async(req, res) => {
+const user = req.body ;
+const token = jwt.sign(user, process.env.SECRET_KEY, {expiresIn: '5h'}) ;
+
+res
+.cookie('token',token, {
+    httpOnly: true,
+    secure: false
+})
+.send({success: true})
+        })
 
         // JOBS related api 
         app.get("/jobs", async (req, res) => {
@@ -72,6 +105,7 @@ async function run() {
             const application = req.body;
             const result = await jobsApplicationCollection.insertOne(application);
 
+
             // not the best way to aggregate 
             // skip this if u dont understand  
             const id = application.jobId;
@@ -97,24 +131,29 @@ async function run() {
             res.send(result);
         })
 
-        app.patch("/job-application/:id", async(req, res) => {
-            const id = req.params.id ;
-            const data = req.body ;
-            const filter = {_id: new ObjectId(id)} ;
+        app.patch("/job-application/:id", async (req, res) => {
+            const id = req.params.id;
+            const data = req.body;
+            const filter = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
                     status: data.status
                 }
             }
-            const result = await jobsApplicationCollection.updateOne(filter, updatedDoc) ;
-            res.send(result) ;
+            const result = await jobsApplicationCollection.updateOne(filter, updatedDoc);
+            res.send(result);
         })
 
 
         // get some data by email 
-        app.get("/job-application", async (req, res) => {
+        app.get("/job-application",verifyToken, async (req, res) => {
             const email = req.query.email;
             const query = { applicantEmail: email };
+
+if(req.user.email !== req.query.email){
+    return res.status(403).send({message: 'Forbidden Access'})
+}
+
             const result = await jobsApplicationCollection.find(query).toArray();
 
             // fokira way to aggregate data 

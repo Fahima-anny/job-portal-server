@@ -64,6 +64,15 @@ res
 .send({success: true})
         })
 
+        
+app.post('/logout', (req, res) => {
+    res.clearCookie('token', {
+        httpOnly: true,
+        secure: false
+    })
+    .send({success: true})
+})
+
         // JOBS related api 
         app.get("/jobs", async (req, res) => {
             const email = req.query.email;
@@ -179,6 +188,7 @@ if(req.user.email !== req.query.email){
             const result = await jobsApplicationCollection.deleteOne(query);
             res.send(result)
         })
+
 
 
     } finally {

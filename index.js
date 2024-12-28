@@ -10,8 +10,8 @@ const port = process.env.PORT || 3000;
 app.use(cors({
     origin: [
         'http://localhost:5173',
-'https://job-portal-ph-6f261.web.app',
-'https://job-portal-ph-6f261.firebaseapp.com'
+        'https://job-portal-ph-6f261.web.app',
+        'https://job-portal-ph-6f261.firebaseapp.com'
     ],
     credentials: true
 }));
@@ -83,12 +83,37 @@ async function run() {
 
         // JOBS related api 
         app.get("/jobs", async (req, res) => {
-            const email = req.query.email;
+            const email = req.query?.email ;
+            const sort = req.query?.sort ;
+            const search = req.query?.search ;
+            const min = req.query?.minSalary ;
+            const max = req.query?.maxSalary ;
+
             let query = {};
+            let sortQuery = {} ;
+
             if (email) {
                 query = { hr_email: email }
             }
-            const result = await jobsCollection.find(query).toArray();
+
+            if(sort === "true"){
+                sortQuery = {"salaryRange.min": -1}
+            }
+
+            if(search){
+                query.location = {$regex: search , $options: "i"} ;
+            }
+            // console.log(req.query);
+
+            if(max && min){
+                query = {
+                    ...query,
+                    "salaryRange.min": {$gte : parseInt(min)},
+                    "salaryRange.max": {$lte : parseInt(max)},
+                }
+            }
+
+            const result = await jobsCollection.find(query).sort(sortQuery).toArray();
             res.send(result);
         })
 
